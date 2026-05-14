@@ -364,6 +364,19 @@ h2 {
   font-weight: 800;
 }
 
+.sound-toggle {
+  min-width: 104px;
+  padding: 0 14px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.sound-toggle[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: rgba(93, 198, 168, 0.48);
+}
+
 .arrows {
   display: grid;
   grid-template-columns: repeat(3, 44px);

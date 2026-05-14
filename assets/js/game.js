@@ -73,6 +73,7 @@ const scoreElement = document.querySelector("#score");
 const movesElement = document.querySelector("#moves");
 const nextTileElement = document.querySelector("#nextTile");
 const spawnDotsElement = document.querySelector("#spawnDots");
+const soundToggleElement = document.querySelector("#soundToggle");
 const bannerElement = document.querySelector("#banner");
 const bannerTitleElement = document.querySelector("#bannerTitle");
 const bannerTextElement = document.querySelector("#bannerText");
@@ -82,6 +83,8 @@ let nextTileId = 1;
 let tileLayerElement;
 let burstLayerElement;
 let tileElements = new Map();
+let audioContext;
+let soundEnabled = true;
 
 function createGame() {
   const target = WORDS[Math.floor(Math.random() * WORDS.length)];
@@ -178,6 +181,70 @@ function renderHud() {
     dot.className = index < spawnProgress ? "filled" : "";
     spawnDotsElement.append(dot);
   }
+}
+
+function getAudioContext() {
+  if (!soundEnabled) return null;
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return null;
+
+  if (!audioContext) {
+    audioContext = new AudioContext();
+  }
+
+  if (audioContext.state === "suspended") {
+    audioContext.resume();
+  }
+
+  return audioContext;
+}
+
+function playTone({ frequency, endFrequency = frequency, duration = 0.12, type = "sine", volume = 0.06, delay = 0 }) {
+  const context = getAudioContext();
+  if (!context) return;
+
+  const start = context.currentTime + delay;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, start);
+  oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, endFrequency), start + duration);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.012);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+  oscillator.connect(gain);
+  gain.connect(context.destination);
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.02);
+}
+
+function playSound(name) {
+  if (!soundEnabled) return;
+
+  const sounds = {
+    slide: () => playTone({ frequency: 190, endFrequency: 245, duration: 0.09, type: "triangle", volume: 0.035 }),
+    blocked: () => playTone({ frequency: 120, endFrequency: 82, duration: 0.11, type: "sawtooth", volume: 0.025 }),
+    merge: () => {
+      playTone({ frequency: 330, endFrequency: 440, duration: 0.11, type: "triangle", volume: 0.045 });
+      playTone({ frequency: 660, endFrequency: 880, duration: 0.12, type: "sine", volume: 0.03, delay: 0.04 });
+    },
+    spawn: () => playTone({ frequency: 740, endFrequency: 520, duration: 0.13, type: "sine", volume: 0.035 }),
+    win: () => {
+      [523, 659, 784, 1046].forEach((frequency, index) => {
+        playTone({ frequency, endFrequency: frequency * 1.02, duration: 0.16, type: "sine", volume: 0.04, delay: index * 0.075 });
+      });
+    },
+  };
+
+  sounds[name]?.();
+}
+
+function setSoundEnabled(enabled) {
+  soundEnabled = enabled;
+  soundToggleElement.textContent = enabled ? "Sound On" : "Sound Off";
+  soundToggleElement.setAttribute("aria-pressed", String(enabled));
 }
 
 function syncTiles(newTileIds = new Set()) {
@@ -405,10 +472,12 @@ function move(direction) {
   const changed = before !== after;
 
   if (!changed) {
+    playSound("blocked");
     pulseBoard();
     return;
   }
 
+  playSound(animations.appears.length || animations.clears.length ? "merge" : "slide");
   state.animating = true;
   state.moves += 1;
   state.board = nextBoard;
@@ -422,6 +491,7 @@ function move(direction) {
       state.animating = false;
       renderHud();
       endGame(true, "Solved", `${state.target.toUpperCase()} lined up in ${state.moves} moves.`);
+      playSound("win");
       return;
     }
 
@@ -429,6 +499,7 @@ function move(direction) {
     if (state.moves % SPAWN_EVERY_MOVES === 0) {
       const spawned = addTile(randomJunkLetter(), "junk");
       if (spawned) spawnedIds.add(spawned.tile.id);
+      if (spawned) playSound("spawn");
     }
 
     state.animating = false;
@@ -625,6 +696,10 @@ function shuffleArray(items) {
 }
 
 document.querySelector("#newGame").addEventListener("click", createGame);
+soundToggleElement.addEventListener("click", () => {
+  setSoundEnabled(!soundEnabled);
+  if (soundEnabled) playSound("spawn");
+});
 [
   ["#up", "up"],
   ["#left", "left"],
