@@ -699,11 +699,13 @@ h2 {
 
   .topbar {
     align-items: flex-end;
+    padding-right: 54px;
   }
 
   .quit-button {
     top: 0;
-    left: 0;
+    right: 0;
+    left: auto;
   }
 
   .stats div {
