@@ -62,17 +62,13 @@ const WORDS = [
 
 const SIZE = 5;
 const BOARD_CELLS = SIZE * SIZE;
-const STARTING_JUNK = 4;
-const SPAWN_EVERY_MOVES = 5;
+const STARTING_EXTRA_TILES = 4;
 const SLIDE_MS = 240;
 const MERGE_MS = 170;
-const JUNK_LETTERS = "rstlneacdmop".split("");
 
 const boardElement = document.querySelector("#board");
 const scoreElement = document.querySelector("#score");
 const movesElement = document.querySelector("#moves");
-const nextTileElement = document.querySelector("#nextTile");
-const spawnDotsElement = document.querySelector("#spawnDots");
 const soundToggleElement = document.querySelector("#soundToggle");
 const bannerElement = document.querySelector("#banner");
 const bannerTitleElement = document.querySelector("#bannerTitle");
@@ -103,7 +99,7 @@ function createGame() {
   };
 
   seedTargetLetters(target);
-  for (let count = 0; count < STARTING_JUNK; count += 1) addTile(randomJunkLetter(), "junk");
+  for (let count = 0; count < STARTING_EXTRA_TILES; count += 1) addTile(randomWordLetter(), "extra");
 
   bannerElement.classList.add("hidden");
   render();
@@ -119,7 +115,7 @@ function seedTargetLetters(target) {
   }
 }
 
-function addTile(text = randomJunkLetter(), kind = "junk", extra = {}) {
+function addTile(text = randomWordLetter(), kind = "extra", extra = {}) {
   const emptyIndexes = state.board
     .map((tile, index) => (tile ? null : index))
     .filter((index) => index !== null);
@@ -138,9 +134,8 @@ function addTile(text = randomJunkLetter(), kind = "junk", extra = {}) {
   return { tile, index };
 }
 
-function randomJunkLetter() {
-  const bag = [...state.target, ...JUNK_LETTERS, ...JUNK_LETTERS.slice(0, 5)];
-  return bag[Math.floor(Math.random() * bag.length)];
+function randomWordLetter() {
+  return state.target[Math.floor(Math.random() * state.target.length)];
 }
 
 function render() {
@@ -171,16 +166,6 @@ function setupBoardShell() {
 function renderHud() {
   scoreElement.textContent = state.score.toLocaleString();
   movesElement.textContent = state.moves.toString();
-  const spawnProgress = state.moves % SPAWN_EVERY_MOVES;
-  const movesUntilSpawn = spawnProgress === 0 ? SPAWN_EVERY_MOVES : SPAWN_EVERY_MOVES - spawnProgress;
-  nextTileElement.textContent = movesUntilSpawn.toString();
-  spawnDotsElement.innerHTML = "";
-
-  for (let index = 0; index < SPAWN_EVERY_MOVES; index += 1) {
-    const dot = document.createElement("i");
-    dot.className = index < spawnProgress ? "filled" : "";
-    spawnDotsElement.append(dot);
-  }
 }
 
 function getAudioContext() {
@@ -496,11 +481,9 @@ function move(direction) {
     }
 
     const spawnedIds = new Set();
-    if (state.moves % SPAWN_EVERY_MOVES === 0) {
-      const spawned = addTile(randomJunkLetter(), "junk");
-      if (spawned) spawnedIds.add(spawned.tile.id);
-      if (spawned) playSound("spawn");
-    }
+    const spawned = addTile(randomWordLetter(), "extra");
+    if (spawned) spawnedIds.add(spawned.tile.id);
+    if (spawned) playSound("spawn");
 
     state.animating = false;
     syncTiles(spawnedIds);
@@ -709,7 +692,9 @@ soundToggleElement.addEventListener("click", () => {
   document.querySelector(selector).addEventListener("click", () => move(direction));
 });
 
-document.addEventListener("keydown", (event) => {
+window.addEventListener("keydown", (event) => {
+  if (event.metaKey || event.ctrlKey || event.altKey) return;
+
   const directionByKey = {
     ArrowUp: "up",
     ArrowDown: "down",
@@ -720,11 +705,11 @@ document.addEventListener("keydown", (event) => {
     a: "left",
     d: "right",
   };
-  const direction = directionByKey[event.key];
+  const direction = directionByKey[event.key] ?? directionByKey[event.key.toLowerCase()];
   if (!direction) return;
   event.preventDefault();
   move(direction);
-});
+}, { capture: true });
 
 let touchStart = null;
 boardElement.addEventListener("pointerdown", (event) => {

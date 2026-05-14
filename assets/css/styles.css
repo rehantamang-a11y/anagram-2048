@@ -455,28 +455,6 @@ h2 {
   background: var(--accent);
 }
 
-.spawn-meter {
-  margin-top: 6px;
-}
-
-.spawn-meter b {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 7px;
-  width: min(220px, 100%);
-}
-
-.spawn-meter i {
-  display: block;
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(243, 240, 232, 0.14);
-}
-
-.spawn-meter i.filled {
-  background: var(--accent);
-}
-
 @keyframes rise {
   from {
     opacity: 0;
