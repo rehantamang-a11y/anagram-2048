@@ -91,6 +91,7 @@ const modeButtonElements = document.querySelectorAll(".mode-button");
 const bannerElement = document.querySelector("#banner");
 const bannerTitleElement = document.querySelector("#bannerTitle");
 const bannerTextElement = document.querySelector("#bannerText");
+const playAgainElement = document.querySelector("#playAgain");
 
 let state;
 let nextTileId = 1;
@@ -714,6 +715,13 @@ function endGame(won, title, text) {
   bannerElement.classList.remove("hidden");
 }
 
+function showModeChooser({ title = "Choose mode", text = "Pick a board size to start a new hidden word.", cancellable = false } = {}) {
+  quitTitleElement.textContent = title;
+  quitTextElement.textContent = text;
+  cancelQuitElement.classList.toggle("hidden", !cancellable);
+  quitModalElement.classList.remove("hidden");
+}
+
 function pulseBoard() {
   boardElement.animate(
     [
@@ -737,10 +745,11 @@ function shuffleArray(items) {
 
 undoButtonElement.addEventListener("click", undoMove);
 quitButtonElement.addEventListener("click", () => {
-  quitTitleElement.textContent = "Quit game?";
-  quitTextElement.textContent = "Choose a mode to restart with a fresh hidden word.";
-  cancelQuitElement.classList.remove("hidden");
-  quitModalElement.classList.remove("hidden");
+  showModeChooser({
+    title: "Quit game?",
+    text: "Choose a mode to restart with a fresh hidden word.",
+    cancellable: true,
+  });
 });
 cancelQuitElement.addEventListener("click", () => {
   quitModalElement.classList.add("hidden");
@@ -754,6 +763,13 @@ modeButtonElements.forEach((button) => {
 soundToggleElement.addEventListener("click", () => {
   setSoundEnabled(!soundEnabled);
   if (soundEnabled) playSound("spawn");
+});
+playAgainElement.addEventListener("click", () => {
+  showModeChooser({
+    title: "New game",
+    text: "Choose a mode for the next hidden word.",
+    cancellable: true,
+  });
 });
 [
   ["#up", "up"],
@@ -799,7 +815,4 @@ boardElement.addEventListener("pointerup", (event) => {
   move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up");
 });
 
-quitTitleElement.textContent = "Choose mode";
-quitTextElement.textContent = "Pick a board size to start a new hidden word.";
-cancelQuitElement.classList.add("hidden");
-quitModalElement.classList.remove("hidden");
+showModeChooser();
