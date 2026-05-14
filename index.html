@@ -8,6 +8,12 @@
       name="description"
       content="A compact sliding word puzzle that blends anagram solving with 2048-style movement."
     />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="assets/css/styles.css" />
   </head>
   <body>
@@ -53,11 +59,11 @@
       <aside class="panel" aria-label="Puzzle details">
         <section class="rules" aria-label="Game guide">
           <h2>Hidden 4-letter word</h2>
-          <p>Line it up in a row or column. One hidden-word letter appears after every valid move.</p>
+          <p>Arrange it in order across any row or column. Each valid move adds one hidden-word letter.</p>
           <div class="legend" aria-label="Tile states">
-            <span><i class="swatch swatch-clutter"></i>Clutter</span>
-            <span><i class="swatch swatch-answer"></i>Answer letter</span>
-            <span><i class="swatch swatch-link"></i>Correct ordered neighbor</span>
+            <span><i class="swatch swatch-clutter"></i>Extra copy</span>
+            <span><i class="swatch swatch-answer"></i>Needed letter</span>
+            <span><i class="swatch swatch-link"></i>Ordered pair</span>
           </div>
         </section>
       </aside>
