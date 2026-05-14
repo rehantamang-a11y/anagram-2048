@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Anagram 2048</title>
+    <meta
+      name="description"
+      content="A compact sliding word puzzle that blends anagram solving with 2048-style movement."
+    />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="game">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Anagram x 2048</p>
+            <h1>Anagram 2048</h1>
+          </div>
+          <div class="stats" aria-label="Game stats">
+            <div>
+              <span>Score</span>
+              <strong id="score">0</strong>
+            </div>
+            <div>
+              <span>Moves</span>
+              <strong id="moves">0</strong>
+            </div>
+            <div>
+              <span>Next</span>
+              <strong id="nextTile">5</strong>
+            </div>
+          </div>
+        </header>
+
+        <section class="board-wrap" aria-label="Game board">
+          <div class="board" id="board"></div>
+          <div class="banner hidden" id="banner" role="status" aria-live="polite">
+            <strong id="bannerTitle">Solved</strong>
+            <span id="bannerText">You lined up the word.</span>
+          </div>
+        </section>
+
+        <div class="controls" aria-label="Move controls">
+          <button class="ghost" id="newGame" type="button">New</button>
+          <div class="arrows">
+            <button id="up" type="button" aria-label="Move up">↑</button>
+            <button id="left" type="button" aria-label="Move left">←</button>
+            <button id="down" type="button" aria-label="Move down">↓</button>
+            <button id="right" type="button" aria-label="Move right">→</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel" aria-label="Puzzle details">
+        <section class="rules" aria-label="Game guide">
+          <h2>Hidden 4-letter word</h2>
+          <p>Line it up in a row or column. New clutter arrives every five valid moves.</p>
+          <div class="legend" aria-label="Tile states">
+            <span><i class="swatch swatch-clutter"></i>Clutter</span>
+            <span><i class="swatch swatch-answer"></i>Answer letter</span>
+            <span><i class="swatch swatch-link"></i>Correct neighbor</span>
+          </div>
+          <div class="spawn-meter" aria-label="New tile progress">
+            <b id="spawnDots"></b>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <script src="assets/js/game.js"></script>
+  </body>
+</html>
