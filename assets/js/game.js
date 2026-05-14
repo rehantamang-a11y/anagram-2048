@@ -304,23 +304,7 @@ function getTileStatuses() {
     statuses.set(tile.id, "clutter");
   });
 
-  markSameLetterHelpers(statuses);
   return statuses;
-}
-
-function markSameLetterHelpers(statuses) {
-  state.board.forEach((tile, index) => {
-    if (!tile || statuses.get(tile.id) !== "clutter" || !isAnswerLetter(tile.text)) return;
-
-    const neighbors = getNeighborIndexes(index)
-      .map((neighborIndex) => state.board[neighborIndex])
-      .filter(Boolean);
-    const touchesUsefulTwin = neighbors.some((neighbor) => {
-      return neighbor.text === tile.text && ["linked", "loose"].includes(statuses.get(neighbor.id));
-    });
-
-    if (touchesUsefulTwin) statuses.set(tile.id, "loose");
-  });
 }
 
 function getLinkedTargetIds(remaining) {
