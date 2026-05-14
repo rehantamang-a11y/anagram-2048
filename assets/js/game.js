@@ -60,16 +60,34 @@ const WORDS = [
   "wood",
 ];
 
-const SIZE = 5;
-const BOARD_CELLS = SIZE * SIZE;
-const STARTING_EXTRA_TILES = 4;
+const DIFFICULTIES = {
+  easy: {
+    label: "Easy",
+    size: 5,
+    startingExtraTiles: 4,
+  },
+  hard: {
+    label: "Hard",
+    size: 4,
+    startingExtraTiles: 2,
+  },
+};
+const MAX_UNDOS = 3;
 const SLIDE_MS = 240;
 const MERGE_MS = 170;
 
 const boardElement = document.querySelector("#board");
 const scoreElement = document.querySelector("#score");
 const movesElement = document.querySelector("#moves");
+const undoButtonElement = document.querySelector("#undoMove");
+const undoCountElement = document.querySelector("#undoCount");
 const soundToggleElement = document.querySelector("#soundToggle");
+const quitButtonElement = document.querySelector("#quitGame");
+const quitModalElement = document.querySelector("#quitModal");
+const quitTitleElement = document.querySelector("#quitTitle");
+const quitTextElement = document.querySelector("#quitText");
+const cancelQuitElement = document.querySelector("#cancelQuit");
+const modeButtonElements = document.querySelectorAll(".mode-button");
 const bannerElement = document.querySelector("#banner");
 const bannerTitleElement = document.querySelector("#bannerTitle");
 const bannerTextElement = document.querySelector("#bannerText");
@@ -81,25 +99,32 @@ let burstLayerElement;
 let tileElements = new Map();
 let audioContext;
 let soundEnabled = true;
+let currentDifficulty = "easy";
 
-function createGame() {
+function createGame(difficulty = currentDifficulty) {
+  const config = DIFFICULTIES[difficulty] ?? DIFFICULTIES.easy;
   const target = WORDS[Math.floor(Math.random() * WORDS.length)];
+  currentDifficulty = difficulty;
   nextTileId = 1;
   tileElements = new Map();
   setupBoardShell();
 
   state = {
+    difficulty,
+    size: config.size,
     target,
-    board: Array.from({ length: BOARD_CELLS }, () => null),
+    board: Array.from({ length: getBoardCellCount(config.size) }, () => null),
     score: 0,
     moves: 0,
+    history: [],
+    undosLeft: MAX_UNDOS,
     over: false,
     won: false,
     animating: false,
   };
 
   seedTargetLetters(target);
-  for (let count = 0; count < STARTING_EXTRA_TILES; count += 1) addTile(randomWordLetter(), "extra");
+  for (let count = 0; count < config.startingExtraTiles; count += 1) addTile(randomWordLetter(), "extra");
 
   bannerElement.classList.add("hidden");
   render();
@@ -144,11 +169,12 @@ function render() {
 }
 
 function setupBoardShell() {
+  const size = getBoardSize();
   boardElement.innerHTML = "";
-  boardElement.style.setProperty("--size", SIZE);
-  boardElement.style.setProperty("--tracks", SIZE - 1);
+  boardElement.style.setProperty("--size", size);
+  boardElement.style.setProperty("--tracks", size - 1);
 
-  for (let index = 0; index < BOARD_CELLS; index += 1) {
+  for (let index = 0; index < getBoardCellCount(); index += 1) {
     const cell = document.createElement("div");
     cell.className = "cell";
     boardElement.append(cell);
@@ -166,6 +192,8 @@ function setupBoardShell() {
 function renderHud() {
   scoreElement.textContent = state.score.toLocaleString();
   movesElement.textContent = state.moves.toString();
+  undoCountElement.textContent = state.undosLeft.toString();
+  undoButtonElement.disabled = state.undosLeft <= 0 || state.history.length === 0 || state.animating;
 }
 
 function getAudioContext() {
@@ -277,10 +305,11 @@ function updateTileContent(tileElement, tile, status = "clutter") {
 }
 
 function setTilePosition(tileElement, index) {
-  const row = Math.floor(index / SIZE);
-  const col = index % SIZE;
-  tileElement.style.left = `calc(${col} * ((100% + var(--board-gap)) / ${SIZE}))`;
-  tileElement.style.top = `calc(${row} * ((100% + var(--board-gap)) / ${SIZE}))`;
+  const size = getBoardSize();
+  const row = Math.floor(index / size);
+  const col = index % size;
+  tileElement.style.left = `calc(${col} * ((100% + var(--board-gap)) / ${size}))`;
+  tileElement.style.top = `calc(${row} * ((100% + var(--board-gap)) / ${size}))`;
 }
 
 function getTileStatuses() {
@@ -314,10 +343,11 @@ function getLinkedTargetIds(remaining) {
   state.board.forEach((tile, index) => {
     if (!tile || !isAnswerLetter(tile.text)) return;
 
-    const row = Math.floor(index / SIZE);
-    const col = index % SIZE;
-    const right = col < SIZE - 1 ? state.board[index + 1] : null;
-    const down = row < SIZE - 1 ? state.board[index + SIZE] : null;
+    const size = getBoardSize();
+    const row = Math.floor(index / size);
+    const col = index % size;
+    const right = col < size - 1 ? state.board[index + 1] : null;
+    const down = row < size - 1 ? state.board[index + size] : null;
 
     // Only consecutive answer neighbors turn green; G beside E in GREEN stays yellow.
     if (isConsecutivePair(tile, right)) pairs.push([tile, right]);
@@ -361,20 +391,21 @@ function isConsecutivePair(first, second) {
 }
 
 function getNeighborIndexes(index) {
-  const row = Math.floor(index / SIZE);
-  const col = index % SIZE;
+  const size = getBoardSize();
+  const row = Math.floor(index / size);
+  const col = index % size;
   const indexes = [];
 
-  if (row > 0) indexes.push(index - SIZE);
-  if (row < SIZE - 1) indexes.push(index + SIZE);
+  if (row > 0) indexes.push(index - size);
+  if (row < size - 1) indexes.push(index + size);
   if (col > 0) indexes.push(index - 1);
-  if (col < SIZE - 1) indexes.push(index + 1);
+  if (col < size - 1) indexes.push(index + 1);
 
   return indexes;
 }
 
 function move(direction) {
-  if (state.over || state.animating) return;
+  if (!state || state.over || state.animating) return;
 
   const before = serializeBoard();
   const animations = {
@@ -383,7 +414,7 @@ function move(direction) {
     clears: [],
   };
   let scoreGain = 0;
-  const nextBoard = Array.from({ length: BOARD_CELLS }, () => null);
+  const nextBoard = Array.from({ length: getBoardCellCount() }, () => null);
   const lines = getLines(direction);
   const mergeBudget = getMergeBudget();
 
@@ -447,6 +478,7 @@ function move(direction) {
   }
 
   playSound(animations.appears.length || animations.clears.length ? "merge" : "slide");
+  state.history.push(createSnapshot());
   state.animating = true;
   state.moves += 1;
   state.board = nextBoard;
@@ -473,6 +505,32 @@ function move(direction) {
     syncTiles(spawnedIds);
     renderHud();
   });
+}
+
+function createSnapshot() {
+  return {
+    board: state.board.map((tile) => (tile ? { ...tile } : null)),
+    score: state.score,
+    moves: state.moves,
+    nextTileId,
+  };
+}
+
+function undoMove() {
+  if (!state || state.animating || state.undosLeft <= 0 || !state.history.length) return;
+
+  const snapshot = state.history.pop();
+  state.board = snapshot.board.map((tile) => (tile ? { ...tile } : null));
+  state.score = snapshot.score;
+  state.moves = snapshot.moves;
+  state.undosLeft -= 1;
+  state.over = false;
+  state.won = false;
+  nextTileId = snapshot.nextTileId;
+  bannerElement.classList.add("hidden");
+  syncTiles();
+  renderHud();
+  playSound("blocked");
 }
 
 function collapseLine(items, mergeBudget) {
@@ -575,23 +633,37 @@ function flashMerge(index) {
   window.setTimeout(() => ripple.remove(), 420);
 }
 
+function getBoardSize(size = state?.size) {
+  return size ?? DIFFICULTIES[currentDifficulty].size;
+}
+
+function getBoardCellCount(size = getBoardSize()) {
+  return size * size;
+}
+
 function checkWin() {
   return getLineSnapshots().some((line) => line.word === state.target);
 }
 
 function getLineSnapshots() {
   const lines = [];
+  const size = getBoardSize();
+  const wordLength = state.target.length;
 
-  for (let row = 0; row < SIZE; row += 1) {
-    const indexes = [];
-    for (let col = 0; col < SIZE; col += 1) indexes.push(row * SIZE + col);
-    lines.push(makeSnapshot(indexes, "row", row + 1));
+  for (let row = 0; row < size; row += 1) {
+    for (let startCol = 0; startCol <= size - wordLength; startCol += 1) {
+      const indexes = [];
+      for (let offset = 0; offset < wordLength; offset += 1) indexes.push(row * size + startCol + offset);
+      lines.push(makeSnapshot(indexes, "row", row + 1));
+    }
   }
 
-  for (let col = 0; col < SIZE; col += 1) {
-    const indexes = [];
-    for (let row = 0; row < SIZE; row += 1) indexes.push(row * SIZE + col);
-    lines.push(makeSnapshot(indexes, "column", col + 1));
+  for (let col = 0; col < size; col += 1) {
+    for (let startRow = 0; startRow <= size - wordLength; startRow += 1) {
+      const indexes = [];
+      for (let offset = 0; offset < wordLength; offset += 1) indexes.push((startRow + offset) * size + col);
+      lines.push(makeSnapshot(indexes, "column", col + 1));
+    }
   }
 
   return lines;
@@ -609,19 +681,20 @@ function makeSnapshot(indexes, type, number) {
 
 function getLines(direction) {
   const lines = [];
+  const size = getBoardSize();
 
   if (direction === "left" || direction === "right") {
-    for (let row = 0; row < SIZE; row += 1) {
+    for (let row = 0; row < size; row += 1) {
       const line = [];
-      for (let col = 0; col < SIZE; col += 1) line.push(row * SIZE + col);
+      for (let col = 0; col < size; col += 1) line.push(row * size + col);
       lines.push(direction === "left" ? line : line.reverse());
     }
   }
 
   if (direction === "up" || direction === "down") {
-    for (let col = 0; col < SIZE; col += 1) {
+    for (let col = 0; col < size; col += 1) {
       const line = [];
-      for (let row = 0; row < SIZE; row += 1) line.push(row * SIZE + col);
+      for (let row = 0; row < size; row += 1) line.push(row * size + col);
       lines.push(direction === "up" ? line : line.reverse());
     }
   }
@@ -662,7 +735,22 @@ function shuffleArray(items) {
   return copy;
 }
 
-document.querySelector("#newGame").addEventListener("click", createGame);
+undoButtonElement.addEventListener("click", undoMove);
+quitButtonElement.addEventListener("click", () => {
+  quitTitleElement.textContent = "Quit game?";
+  quitTextElement.textContent = "Choose a mode to restart with a fresh hidden word.";
+  cancelQuitElement.classList.remove("hidden");
+  quitModalElement.classList.remove("hidden");
+});
+cancelQuitElement.addEventListener("click", () => {
+  quitModalElement.classList.add("hidden");
+});
+modeButtonElements.forEach((button) => {
+  button.addEventListener("click", () => {
+    quitModalElement.classList.add("hidden");
+    createGame(button.dataset.difficulty);
+  });
+});
 soundToggleElement.addEventListener("click", () => {
   setSoundEnabled(!soundEnabled);
   if (soundEnabled) playSound("spawn");
@@ -711,4 +799,7 @@ boardElement.addEventListener("pointerup", (event) => {
   move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up");
 });
 
-createGame();
+quitTitleElement.textContent = "Choose mode";
+quitTextElement.textContent = "Pick a board size to start a new hidden word.";
+cancelQuitElement.classList.add("hidden");
+quitModalElement.classList.remove("hidden");

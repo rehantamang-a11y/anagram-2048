@@ -53,6 +53,7 @@ button {
 }
 
 .game {
+  position: relative;
   grid-column: 2;
   display: grid;
   gap: 16px;
@@ -347,6 +348,30 @@ h2 {
   display: none;
 }
 
+.quit-button {
+  position: absolute;
+  top: -6px;
+  left: -54px;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.045));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.quit-button:hover {
+  color: var(--ink);
+  border-color: rgba(217, 168, 76, 0.55);
+}
+
 .controls button {
   min-height: 42px;
   border: 1px solid var(--line);
@@ -366,10 +391,20 @@ h2 {
   transform: translateY(-1px);
 }
 
+.controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+  transform: none;
+}
+
 .ghost {
-  min-width: 88px;
+  min-width: 108px;
   padding: 0 18px;
   font-weight: 800;
+}
+
+.ghost span {
+  color: var(--accent);
 }
 
 .sound-toggle {
@@ -468,6 +503,93 @@ h2 {
   background: var(--accent);
 }
 
+.quit-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 16, 18, 0.72);
+  backdrop-filter: blur(10px);
+}
+
+.quit-modal.hidden {
+  display: none;
+}
+
+.quit-dialog {
+  width: min(360px, 100%);
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(36, 40, 43, 0.96), rgba(23, 25, 28, 0.96));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+.quit-dialog p {
+  margin-top: 8px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.mode-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.mode-button {
+  min-height: 88px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.035));
+  cursor: pointer;
+  text-align: left;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.mode-button:hover {
+  border-color: rgba(93, 198, 168, 0.55);
+  background: rgba(93, 198, 168, 0.12);
+}
+
+.mode-button strong,
+.mode-button span {
+  display: block;
+}
+
+.mode-button strong {
+  font-size: 1rem;
+}
+
+.mode-button span {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.quit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.quit-actions button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  cursor: pointer;
+  font-weight: 800;
+}
+
 @keyframes rise {
   from {
     opacity: 0;
@@ -558,6 +680,11 @@ h2 {
 
   .topbar {
     align-items: flex-end;
+  }
+
+  .quit-button {
+    top: 0;
+    left: 0;
   }
 
   .stats div {

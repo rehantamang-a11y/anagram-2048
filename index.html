@@ -19,6 +19,7 @@
   <body>
     <main class="shell">
       <section class="game">
+        <button class="quit-button" id="quitGame" type="button" aria-label="Quit current game">×</button>
         <header class="topbar">
           <div>
             <p class="eyebrow">Anagram x 2048</p>
@@ -45,7 +46,7 @@
         </section>
 
         <div class="controls" aria-label="Move controls">
-          <button class="ghost" id="newGame" type="button">New</button>
+          <button class="ghost" id="undoMove" type="button">Undo <span id="undoCount">3</span></button>
           <button class="sound-toggle" id="soundToggle" type="button" aria-pressed="true">Sound On</button>
           <div class="arrows">
             <button id="up" type="button" aria-label="Move up">↑</button>
@@ -59,7 +60,7 @@
       <aside class="panel" aria-label="Puzzle details">
         <section class="rules" aria-label="Game guide">
           <h2>Hidden 4-letter word</h2>
-          <p>Arrange it in order across any row or column. Each valid move adds one hidden-word letter.</p>
+          <p>Arrange it in order along any row or column. Each valid move adds one hidden-word letter.</p>
           <div class="legend" aria-label="Tile states">
             <span><i class="swatch swatch-clutter"></i>Extra copy</span>
             <span><i class="swatch swatch-answer"></i>Needed letter</span>
@@ -68,6 +69,26 @@
         </section>
       </aside>
     </main>
+
+    <div class="quit-modal hidden" id="quitModal" role="dialog" aria-modal="true" aria-labelledby="quitTitle">
+      <div class="quit-dialog">
+        <h2 id="quitTitle">Choose mode</h2>
+        <p id="quitText">Start a fresh hidden word.</p>
+        <div class="mode-actions" aria-label="Difficulty options">
+          <button class="mode-button" data-difficulty="easy" type="button">
+            <strong>Easy</strong>
+            <span>5×5 board</span>
+          </button>
+          <button class="mode-button" data-difficulty="hard" type="button">
+            <strong>Hard</strong>
+            <span>4×4 board</span>
+          </button>
+        </div>
+        <div class="quit-actions">
+          <button id="cancelQuit" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
 
     <script src="assets/js/game.js"></script>
   </body>
