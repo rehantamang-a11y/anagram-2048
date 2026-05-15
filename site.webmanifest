@@ -1,0 +1,17 @@
+{
+  "name": "Anagram 2048",
+  "short_name": "Anagram 2048",
+  "description": "A compact sliding word puzzle that blends anagram solving with 2048-style movement.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0f1012",
+  "theme_color": "#0f1012",
+  "icons": [
+    {
+      "src": "assets/images/icon.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
