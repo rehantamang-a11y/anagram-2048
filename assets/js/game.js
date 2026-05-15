@@ -173,16 +173,24 @@ const DIFFICULTIES = {
   },
 };
 const MAX_UNDOS = 3;
+const MAX_DELETES = 1;
 const SLIDE_MS = 240;
 const MERGE_MS = 170;
+const SUPABASE_URL = "https://lmostoozyunntsrlaizb.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_2WnsbnGUjQB3P5hDXAZPlg_Wkg349-q";
+const REACTION_KEYS = ["fire", "brain", "tough", "fun"];
+const REACTION_STORAGE_KEY = "anagram-2048-reaction";
 
 const boardElement = document.querySelector("#board");
 const scoreElement = document.querySelector("#score");
 const movesElement = document.querySelector("#moves");
 const undoButtonElement = document.querySelector("#undoMove");
 const undoCountElement = document.querySelector("#undoCount");
+const deleteButtonElement = document.querySelector("#deleteTile");
+const deleteCountElement = document.querySelector("#deleteCount");
 const soundToggleElement = document.querySelector("#soundToggle");
-const quitButtonElement = document.querySelector("#quitGame");
+const soundLabelElement = document.querySelector("#soundLabel");
+const quitButtonElements = document.querySelectorAll("[data-quit-game]");
 const quitModalElement = document.querySelector("#quitModal");
 const quitTitleElement = document.querySelector("#quitTitle");
 const quitTextElement = document.querySelector("#quitText");
@@ -192,6 +200,8 @@ const bannerElement = document.querySelector("#banner");
 const bannerTitleElement = document.querySelector("#bannerTitle");
 const bannerTextElement = document.querySelector("#bannerText");
 const playAgainElement = document.querySelector("#playAgain");
+const reactionButtonElements = Array.from(document.querySelectorAll("[data-reaction]"));
+const reactionStatusElement = document.querySelector("#reactionStatus");
 
 let state;
 let nextTileId = 1;
@@ -201,6 +211,7 @@ let tileElements = new Map();
 let audioContext;
 let soundEnabled = true;
 let currentDifficulty = "easy";
+let reactionSaving = false;
 
 function createGame(difficulty = currentDifficulty) {
   const config = DIFFICULTIES[difficulty] ?? DIFFICULTIES.easy;
@@ -219,6 +230,8 @@ function createGame(difficulty = currentDifficulty) {
     moves: 0,
     history: [],
     undosLeft: MAX_UNDOS,
+    deletesLeft: MAX_DELETES,
+    selectedTileId: null,
     over: false,
     won: false,
     animating: false,
@@ -294,7 +307,9 @@ function renderHud() {
   scoreElement.textContent = state.score.toLocaleString();
   movesElement.textContent = state.moves.toString();
   undoCountElement.textContent = state.undosLeft.toString();
+  deleteCountElement.textContent = state.deletesLeft.toString();
   undoButtonElement.disabled = state.undosLeft <= 0 || state.history.length === 0 || state.animating;
+  deleteButtonElement.disabled = !canDeleteSelectedTile();
 }
 
 function getAudioContext() {
@@ -345,6 +360,7 @@ function playSound(name) {
       playTone({ frequency: 660, endFrequency: 880, duration: 0.12, type: "sine", volume: 0.03, delay: 0.04 });
     },
     spawn: () => playTone({ frequency: 740, endFrequency: 520, duration: 0.13, type: "sine", volume: 0.035 }),
+    delete: () => playTone({ frequency: 260, endFrequency: 150, duration: 0.12, type: "triangle", volume: 0.032 }),
     win: () => {
       [523, 659, 784, 1046].forEach((frequency, index) => {
         playTone({ frequency, endFrequency: frequency * 1.02, duration: 0.16, type: "sine", volume: 0.04, delay: index * 0.075 });
@@ -357,11 +373,178 @@ function playSound(name) {
 
 function setSoundEnabled(enabled) {
   soundEnabled = enabled;
-  soundToggleElement.textContent = enabled ? "Sound On" : "Sound Off";
+  soundLabelElement.textContent = enabled ? "Sound On" : "Sound Off";
+  soundToggleElement.setAttribute("aria-label", enabled ? "Turn sound off" : "Turn sound on");
   soundToggleElement.setAttribute("aria-pressed", String(enabled));
 }
 
+function getSupabaseHeaders(hasBody = false) {
+  return {
+    apikey: SUPABASE_PUBLISHABLE_KEY,
+    Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+    ...(hasBody ? { "Content-Type": "application/json" } : {}),
+  };
+}
+
+function getStoredReaction() {
+  try {
+    return window.localStorage.getItem(REACTION_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setStoredReaction(reaction) {
+  try {
+    window.localStorage.setItem(REACTION_STORAGE_KEY, reaction);
+  } catch {
+    // Votes still sync; this only prevents repeat voting in the same browser.
+  }
+}
+
+function clearStoredReaction() {
+  try {
+    window.localStorage.removeItem(REACTION_STORAGE_KEY);
+  } catch {
+    // If storage is unavailable, the shared count still updates.
+  }
+}
+
+function setReactionStatus(text) {
+  reactionStatusElement.textContent = text;
+}
+
+async function getErrorMessage(response) {
+  try {
+    const error = await response.json();
+    return error?.code === "PGRST202" ? "Run Supabase setup SQL." : error?.message ?? "Reaction sync failed.";
+  } catch {
+    return "Reaction sync failed.";
+  }
+}
+
+function updateReactionButtons(counts = new Map()) {
+  const storedReaction = getStoredReaction();
+
+  reactionButtonElements.forEach((button) => {
+    const reaction = button.dataset.reaction;
+    const count = counts.has(reaction) ? counts.get(reaction) : Number(button.dataset.count ?? 0);
+    const countElement = button.querySelector("[data-count]");
+
+    button.dataset.count = String(count);
+    countElement.textContent = count.toLocaleString();
+    button.classList.toggle("voted", storedReaction === reaction);
+    button.disabled = reactionSaving || (Boolean(storedReaction) && storedReaction !== reaction);
+  });
+}
+
+async function loadReactions() {
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/reactions?select=emoji,count`, {
+      headers: getSupabaseHeaders(),
+    });
+
+    if (!response.ok) throw new Error("Reaction counts are not ready yet.");
+
+    const rows = await response.json();
+    const counts = new Map(rows.map((row) => [row.emoji, Number(row.count) || 0]));
+    REACTION_KEYS.forEach((reaction) => {
+      if (!counts.has(reaction)) counts.set(reaction, 0);
+    });
+
+    updateReactionButtons(counts);
+    setReactionStatus("");
+  } catch {
+    updateReactionButtons();
+    setReactionStatus("Run Supabase setup SQL.");
+  }
+}
+
+async function submitReaction(reaction) {
+  if (reactionSaving || !REACTION_KEYS.includes(reaction) || getStoredReaction()) return;
+
+  const button = reactionButtonElements.find((item) => item.dataset.reaction === reaction);
+  if (!button) return;
+
+  const previousCount = Number(button.dataset.count ?? 0);
+  reactionSaving = true;
+  updateReactionButtons(new Map([[reaction, previousCount + 1]]));
+  setReactionStatus("Saving reaction...");
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/increment_reaction`, {
+      method: "POST",
+      headers: getSupabaseHeaders(true),
+      body: JSON.stringify({ reaction_key: reaction }),
+    });
+
+    if (!response.ok) throw new Error(await getErrorMessage(response));
+
+    const rows = await response.json();
+    const saved = Array.isArray(rows) ? rows[0] : rows;
+    if (saved?.emoji) {
+      updateReactionButtons(new Map([[saved.emoji, Number(saved.count) || previousCount + 1]]));
+    }
+
+    setStoredReaction(reaction);
+    reactionSaving = false;
+    updateReactionButtons();
+    setReactionStatus("Saved.");
+  } catch (error) {
+    reactionSaving = false;
+    updateReactionButtons(new Map([[reaction, previousCount]]));
+    setReactionStatus(error.message);
+  }
+}
+
+async function removeReaction(reaction) {
+  if (reactionSaving || getStoredReaction() !== reaction) return;
+
+  const button = reactionButtonElements.find((item) => item.dataset.reaction === reaction);
+  if (!button) return;
+
+  const previousCount = Number(button.dataset.count ?? 0);
+  const nextCount = Math.max(0, previousCount - 1);
+  reactionSaving = true;
+  updateReactionButtons(new Map([[reaction, nextCount]]));
+  setReactionStatus("Removing reaction...");
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/decrement_reaction`, {
+      method: "POST",
+      headers: getSupabaseHeaders(true),
+      body: JSON.stringify({ reaction_key: reaction }),
+    });
+
+    if (!response.ok) throw new Error(await getErrorMessage(response));
+
+    const saved = await response.json();
+    if (saved?.emoji) {
+      updateReactionButtons(new Map([[saved.emoji, Number(saved.count) || 0]]));
+    }
+
+    clearStoredReaction();
+    reactionSaving = false;
+    updateReactionButtons();
+    setReactionStatus("Removed.");
+  } catch (error) {
+    reactionSaving = false;
+    updateReactionButtons(new Map([[reaction, previousCount]]));
+    setReactionStatus(error.message);
+  }
+}
+
+function toggleReaction(reaction) {
+  if (getStoredReaction() === reaction) {
+    removeReaction(reaction);
+    return;
+  }
+
+  submitReaction(reaction);
+}
+
 function syncTiles(newTileIds = new Set()) {
+  normalizeSelection();
   const desiredIds = new Set(state.board.filter(Boolean).map((tile) => tile.id));
   const statusById = getTileStatuses();
 
@@ -387,6 +570,7 @@ function syncTiles(newTileIds = new Set()) {
     }
 
     updateTileContent(tileElement, tile, statusById.get(tile.id));
+    tileElement.classList.toggle("selected", tile.id === state.selectedTileId);
     setTilePosition(tileElement, index);
   });
 }
@@ -578,6 +762,7 @@ function move(direction) {
     return;
   }
 
+  state.selectedTileId = null;
   playSound(animations.appears.length || animations.clears.length ? "merge" : "slide");
   state.history.push(createSnapshot());
   state.animating = true;
@@ -613,6 +798,7 @@ function createSnapshot() {
     board: state.board.map((tile) => (tile ? { ...tile } : null)),
     score: state.score,
     moves: state.moves,
+    deletesLeft: state.deletesLeft,
     nextTileId,
   };
 }
@@ -625,6 +811,8 @@ function undoMove() {
   state.score = snapshot.score;
   state.moves = snapshot.moves;
   state.undosLeft -= 1;
+  state.deletesLeft = snapshot.deletesLeft;
+  state.selectedTileId = null;
   state.over = false;
   state.won = false;
   nextTileId = snapshot.nextTileId;
@@ -632,6 +820,70 @@ function undoMove() {
   syncTiles();
   renderHud();
   playSound("blocked");
+}
+
+function canDeleteSelectedTile() {
+  return Boolean(
+    state &&
+      !state.animating &&
+      !state.over &&
+      state.deletesLeft > 0 &&
+      state.board.some((tile) => tile?.id === state.selectedTileId),
+  );
+}
+
+function deleteSelectedTile() {
+  if (!state || state.animating || state.over) return;
+
+  if (!canDeleteSelectedTile()) {
+    playSound("blocked");
+    pulseBoard();
+    return;
+  }
+
+  const index = state.board.findIndex((tile) => tile?.id === state.selectedTileId);
+  state.history.push(createSnapshot());
+  state.board[index] = null;
+  state.selectedTileId = null;
+  state.deletesLeft -= 1;
+  syncTiles();
+  renderHud();
+  playSound("delete");
+}
+
+function normalizeSelection() {
+  if (!state?.selectedTileId) return;
+  if (!state.board.some((tile) => tile?.id === state.selectedTileId)) {
+    state.selectedTileId = null;
+  }
+}
+
+function selectTileAtPoint(clientX, clientY) {
+  if (!state || state.animating || state.over) return;
+
+  const index = getTileIndexAtPoint(clientX, clientY);
+  const tile = index === null ? null : state.board[index];
+  state.selectedTileId = tile ? tile.id : null;
+  syncTiles();
+  renderHud();
+}
+
+function getTileIndexAtPoint(clientX, clientY) {
+  const rect = boardElement.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const y = clientY - rect.top;
+  if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
+
+  const size = getBoardSize();
+  const gap = parseFloat(getComputedStyle(boardElement).getPropertyValue("--board-gap")) || 0;
+  const tileSize = (rect.width - gap * (size - 1)) / size;
+  const step = tileSize + gap;
+  const col = Math.floor(x / step);
+  const row = Math.floor(y / step);
+  if (col < 0 || row < 0 || col >= size || row >= size) return null;
+  if (x - col * step > tileSize || y - row * step > tileSize) return null;
+
+  return row * size + col;
 }
 
 function collapseLine(items, mergeBudget) {
@@ -844,13 +1096,14 @@ function shuffleArray(items) {
 }
 
 undoButtonElement.addEventListener("click", undoMove);
-quitButtonElement.addEventListener("click", () => {
+deleteButtonElement.addEventListener("click", deleteSelectedTile);
+quitButtonElements.forEach((button) => button.addEventListener("click", () => {
   showModeChooser({
     title: "Quit game?",
     text: "Choose a mode to restart with a fresh hidden word.",
     cancellable: true,
   });
-});
+}));
 cancelQuitElement.addEventListener("click", () => {
   quitModalElement.classList.add("hidden");
 });
@@ -871,13 +1124,8 @@ playAgainElement.addEventListener("click", () => {
     cancellable: true,
   });
 });
-[
-  ["#up", "up"],
-  ["#left", "left"],
-  ["#down", "down"],
-  ["#right", "right"],
-].forEach(([selector, direction]) => {
-  document.querySelector(selector).addEventListener("click", () => move(direction));
+reactionButtonElements.forEach((button) => {
+  button.addEventListener("click", () => toggleReaction(button.dataset.reaction));
 });
 
 window.addEventListener("keydown", (event) => {
@@ -911,8 +1159,13 @@ boardElement.addEventListener("pointerup", (event) => {
   const dy = event.clientY - touchStart.y;
   touchStart = null;
 
-  if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) {
+    selectTileAtPoint(event.clientX, event.clientY);
+    return;
+  }
+
   move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up");
 });
 
 showModeChooser();
+loadReactions();
